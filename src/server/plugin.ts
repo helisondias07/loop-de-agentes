@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 import { createController } from "../core/factory.ts";
-import { writePointer } from "../core/controller.ts";
+import { writePointer } from "../core/persist.ts";
 import { SIMULATION_BANNER, type ScenarioId } from "../core/types.ts";
 import { ControllerError } from "../core/types.ts";
 import { requireExplicitGateId } from "../core/gates.ts";

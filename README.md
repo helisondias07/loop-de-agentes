@@ -14,8 +14,8 @@ Slug recomendado: `loop-de-agentes`.
 
 | Peça | Estado |
 | --- | --- |
-| `WorkflowController`, contratos, persistência, locks, orçamentos | **Implementado** e usado por UI, CLI e testes |
-| `DeterministicHarness` + `verify-runner.mjs` | **Simulação determinística** (zero LLM/rede/auth) |
+| `WorkflowController`, contratos, persistência, locks, orçamentos | **Implementado** (Node ficheiros **ou** localStorage) |
+| `DeterministicHarness` + verify-runner / check in-browser | **Simulação determinística** (zero LLM/rede/auth) |
 | `CursorAgentCliAdapter` | **Não implementado** (fronteira tipada; lança `LIVE_ADAPTER_UNIMPLEMENTED`) |
 | Baseline/benchmark de produtividade | **Não executado** (sem números inventados) |
 
@@ -27,11 +27,25 @@ Node.js 22+. Sem chaves de API.
 npm install
 npm test
 npm run typecheck
-npm run build
-npm run dev
+npm run lint
+npm run build          # dist/ — UI local (o /api só existe em `npm run dev`)
+npm run build:static   # dist-static/ — demo só-browser, sem /api
+npm run dev            # http://127.0.0.1:43147 (Vite + plugin /api + .loop-runs/)
 ```
 
-UI: http://127.0.0.1:43147
+### Demo estático (simulação no browser)
+
+É uma simulação determinística para revisão em hosting estático. **Não** é um
+agente live e **não** chama modelos.
+
+```bash
+npm run build:static
+python3 -m http.server 43148 --directory dist-static
+```
+
+Pasta de saída: `dist-static/`. Em hosting estático genérico: comando de build
+`npm run build:static`, diretório `dist-static`. Persistência: `localStorage`
+(JSON pequeno; inspecionável; sobrevive a reload no mesmo origin).
 
 CLI:
 

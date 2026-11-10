@@ -197,6 +197,7 @@ describe("workflow controller", () => {
         phase: "spec",
         attempt: 1,
         workspaceDir: "/tmp",
+        workspace: { write: async () => {}, read: async () => null },
         lastEvidence: null,
       }),
     ).rejects.toMatchObject({ code: "LIVE_ADAPTER_UNIMPLEMENTED" });

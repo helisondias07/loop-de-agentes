@@ -17,5 +17,28 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/ui", "src/main.tsx", "src/vite-env.d.ts"]
+  "include": [
+    "src/ui",
+    "src/main.tsx",
+    "src/vite-env.d.ts",
+    "src/browser",
+    "src/core/checksum.ts",
+    "src/core/clock.ts",
+    "src/core/contracts.ts",
+    "src/core/controller.ts",
+    "src/core/gates.ts",
+    "src/core/kv-store.ts",
+    "src/core/persist-codec.ts",
+    "src/core/redact.ts",
+    "src/core/resume.ts",
+    "src/core/runId.ts",
+    "src/core/runtime.ts",
+    "src/core/scenarios.ts",
+    "src/core/types.ts",
+    "src/harness/deterministic.ts",
+    "src/task/catalog.ts",
+    "src/task/filter-sources.ts",
+    "src/task/in-page-verify.ts",
+    "src/task/verify-eval.ts"
+  ]
 }

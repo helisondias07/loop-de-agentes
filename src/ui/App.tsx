@@ -1,52 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { STATIC_DEMO_BANNER } from "../core/types.ts";
+import { createBrowserClient } from "./browserClient.ts";
+import { createHttpClient } from "./httpClient.ts";
+import type { LoopClient, LoopView } from "./loopClient.ts";
 
 type PhaseId = "spec" | "plan" | "implementation" | "verification" | "review";
 
-interface Scenario {
-  id: string;
-  title: string;
-  description: string;
-}
-
-interface RunSummary {
-  runId: string;
-  scenarioId: string;
-  status: string;
-  phase: PhaseId;
-  attempt: number;
-  iteration: number;
-  globalSteps: number;
-  callsUsed: number;
-  budgets: {
-    maxRetries: number;
-    maxIterations: number;
-    maxGlobalSteps: number;
-    maxWallClockMs: number;
-    maxCalls: number;
-  };
-  pendingGate: { id: string; reason: string; phase: string } | null;
-  lastEvidence: {
-    exitCode: number;
-    stdout: string;
-    stderr: string;
-    passed: boolean;
-    argv: string[];
-  } | null;
-  ignoredModelClaims: string[];
-  lastError: string | null;
-  terminalReason: string | null;
-  completedPhases: string[];
-  simulationBanner: string;
-}
-
-interface ApiState {
-  banner: string;
-  run: RunSummary | null;
-  traces?: unknown[];
-  scenarios?: Scenario[];
-  error?: string;
-  message?: string;
-}
+const STATIC = import.meta.env.VITE_STATIC_DEMO === "true";
+const client: LoopClient = STATIC ? createBrowserClient() : createHttpClient();
 
 const PHASES: { id: PhaseId; label: string; entry: string }[] = [
   { id: "spec", label: "Spec", entry: "fixtures locais; workspace da run" },
@@ -56,41 +17,40 @@ const PHASES: { id: PhaseId; label: string; entry: string }[] = [
   { id: "review", label: "Review", entry: "evidência passed=true do runner" },
 ];
 
-async function api(path: string, init?: RequestInit): Promise<ApiState> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  return (await response.json()) as ApiState;
-}
+const DEFAULT_BANNER = STATIC
+  ? STATIC_DEMO_BANNER
+  : "Simulação determinística — sem chamadas a modelos";
 
 export default function App() {
   const [tab, setTab] = useState<"painel" | "arquitetura" | "executar" | "limites">(
     "painel",
   );
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [scenarios, setScenarios] = useState<{ id: string; title: string; description: string }[]>(
+    [],
+  );
   const [scenarioId, setScenarioId] = useState("success");
-  const [banner, setBanner] = useState("Simulação determinística — sem chamadas a modelos");
-  const [run, setRun] = useState<RunSummary | null>(null);
-  const [traces, setTraces] = useState<unknown[]>([]);
+  const [banner, setBanner] = useState(DEFAULT_BANNER);
+  const [view, setView] = useState<LoopView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function apply(state: ApiState) {
+  const run = view?.run ?? null;
+  const traces = view?.traces ?? [];
+
+  function apply(state: LoopView) {
     if (state.banner) setBanner(state.banner);
     if (state.scenarios) setScenarios(state.scenarios);
-    setRun(state.run ?? null);
-    setTraces(state.traces ?? []);
+    setView(state);
     if (state.error) setError(`${state.error}: ${state.message ?? ""}`);
     else setError(null);
   }
 
   useEffect(() => {
     void (async () => {
-      const meta = await api("/api/meta");
+      const meta = await client.meta();
       apply(meta);
-      const current = await api("/api/current");
-      apply({ ...meta, ...current, scenarios: meta.scenarios });
+      const current = await client.current();
+      apply({ ...meta, ...current, scenarios: meta.scenarios ?? current.scenarios });
     })();
   }, []);
 
@@ -108,14 +68,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function act(path: string, body?: unknown) {
+  async function act(fn: () => Promise<LoopView>) {
     setBusy(true);
     try {
-      const state = await api(path, {
-        method: "POST",
-        body: body ? JSON.stringify(body) : "{}",
-      });
-      apply(state);
+      apply(await fn());
     } finally {
       setBusy(false);
     }
@@ -184,32 +140,32 @@ export default function App() {
                   ))}
                 </select>
               </label>
-              <button className="primary" type="button" disabled={busy} onClick={() => void act("/api/start", { scenarioId })}>
+              <button className="primary" type="button" disabled={busy} onClick={() => void act(() => client.start(scenarioId))}>
                 Iniciar
               </button>
-              <button type="button" disabled={busy || !run} onClick={() => void act("/api/step")}>
+              <button type="button" disabled={busy || !run} onClick={() => void act(() => client.step())}>
                 Passo
               </button>
-              <button type="button" disabled={busy || !run} onClick={() => void act("/api/until-gate")}>
+              <button type="button" disabled={busy || !run} onClick={() => void act(() => client.untilGate())}>
                 Até o gate
               </button>
               <button
                 type="button"
                 disabled={busy || !run?.pendingGate}
-                onClick={() => void act("/api/approve", { gateId: run?.pendingGate?.id })}
+                onClick={() => void act(() => client.approve(run!.pendingGate!.id))}
               >
                 Aprovar gate
               </button>
-              <button type="button" disabled={busy || run?.status !== "interrupted"} onClick={() => void act("/api/resume")}>
+              <button type="button" disabled={busy || run?.status !== "interrupted"} onClick={() => void act(() => client.resume())}>
                 Retomar
               </button>
-              <button type="button" disabled={busy || !run || ["completed", "cancelled", "exhausted", "failed_closed"].includes(run.status)} onClick={() => void act("/api/interrupt")}>
+              <button type="button" disabled={busy || !run || ["completed", "cancelled", "exhausted", "failed_closed"].includes(run.status)} onClick={() => void act(() => client.interrupt())}>
                 Interromper
               </button>
-              <button type="button" disabled={busy || !run || ["completed", "cancelled", "exhausted", "failed_closed"].includes(run.status)} onClick={() => void act("/api/cancel")}>
+              <button type="button" disabled={busy || !run || ["completed", "cancelled", "exhausted", "failed_closed"].includes(run.status)} onClick={() => void act(() => client.cancel())}>
                 Cancelar
               </button>
-              <button type="button" disabled={busy} onClick={() => void act("/api/reset")}>
+              <button type="button" disabled={busy} onClick={() => void act(() => client.reset())}>
                 Reset
               </button>
             </div>
@@ -284,17 +240,12 @@ export default function App() {
           <article className="docs">
             <h2>Arquitetura</h2>
             <p>
-              O painel fala com o mesmo <code>WorkflowController</code> da CLI e dos
-              testes. O harness usado é <code>deterministic-sim</code>. O adapter{" "}
-              <code>cursor-agent-cli</code> existe só como fronteira tipada alinhada a{" "}
-              <code>agent -p --output-format json|stream-json</code> e lança{" "}
-              <code>LIVE_ADAPTER_UNIMPLEMENTED</code>.
-            </p>
-            <p>
-              Inspiração (não copiada): Superpowered Ralph de João Raul Furtado Lucas
-              / jrlucas1, LICENSE MIT em SHA 29d9df82f6094dcdfd95e6f58541669cc4868fb5
-              (“Copyright (c) 2026”, titular não nomeado). Este MVP é implementação
-              original: contratos, persistência, gates e evidência no controlador.
+              O painel usa o mesmo <code>WorkflowController</code> da CLI e dos
+              testes. No modo local, a UI fala via <code>/api</code>. No demo
+              estático, o controlador corre neste browser com persistência em{" "}
+              <code>localStorage</code> — sem <code>/api</code>. A verificação
+              executa <code>runCatalogChecks</code> sobre o <code>filters.mjs</code>{" "}
+              gravado; não há “passed” hardcoded.
             </p>
           </article>
         ) : null}
@@ -304,8 +255,9 @@ export default function App() {
             <pre>{`npm install
 npm test
 npm run typecheck
-npm run build
-npm run dev   # UI em http://127.0.0.1:43147
+npm run build          # dist/ (UI local; /api só com npm run dev)
+npm run build:static   # dist-static/ (demo browser-only)
+python3 -m http.server 43148 --directory dist-static
 npx tsx src/cli/index.ts demo-success`}</pre>
           </article>
         ) : null}
@@ -314,25 +266,16 @@ npx tsx src/cli/index.ts demo-success`}</pre>
             <h2>Limites</h2>
             <ul>
               <li>Zero chamadas a modelos, rede de LLM ou autenticação de vendor.</li>
-              <li>Sem executor de shell genérico; só o verify-runner de argv fechado.</li>
+              <li>Demo estático: dados só neste navegador (localStorage); sem /api.</li>
               <li>Adapter live do Cursor CLI não é executado nem validado ponta a ponta.</li>
               <li>Protocolo de baseline/benchmark não foi executado; sem números inventados.</li>
               <li>Catálogo sintético local; nenhum dado de loja ou cliente real.</li>
               <li>
-                Cancelar/interromper é cooperativo entre passos: não aborta o{" "}
-                <code>spawnSync</code> da verificação em curso.
+                Resume só a partir de status interrupted. Cancel/interrupt cooperativos
+                entre passos.
               </li>
               <li>
-                Crash com lock órfão ≠ interrupt: use force-unlock e depois passo;
-                resume só com status interrupted.
-              </li>
-              <li>
-                Gates têm ids estáticos (sem nonce). Aprovar na API exige{" "}
-                <code>gateId</code> explícito.
-              </li>
-              <li>
-                Traces e <code>state.json</code> não são uma transação única (o
-                último evento de trace pode faltar após crash).
+                Gates com ids estáticos (sem nonce). Aprovar exige gateId explícito no clique.
               </li>
             </ul>
           </article>

@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   validateImplementation,
   validatePlan,
@@ -8,16 +5,11 @@ import {
   validateSpec,
   validateVerificationEvidence,
 } from "./contracts.ts";
-import { acquireRunLock, forceUnlock, releaseRunLock } from "./lock.ts";
-import {
-  appendTrace,
-  loadRun,
-  readTraces,
-  saveRun,
-  statePath,
-  workspacePath,
-} from "./persist.ts";
+import { GATE_IDS } from "./gates.ts";
 import { redactRecord } from "./redact.ts";
+import { resumeInvalidMessage } from "./resume.ts";
+import { assertRunId } from "./runId.ts";
+import type { LoopRuntime } from "./runtime.ts";
 import { SCENARIOS, listScenarios } from "./scenarios.ts";
 import {
   ControllerError,
@@ -30,14 +22,15 @@ import {
   type RunSummary,
   type ScenarioId,
 } from "./types.ts";
-import { PRODUCT_FIXTURES, runVerification } from "../task/verify.ts";
-import { GATE_IDS } from "./gates.ts";
-import { assertRunId } from "./runId.ts";
 
 export interface ControllerOptions {
-  dataDir: string;
+  runtime: LoopRuntime;
   harness: AgentAdapter;
   clock: Clock;
+}
+
+function newId(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 function summary(run: PersistedRun): RunSummary {
@@ -84,11 +77,11 @@ export class WorkflowController {
   }
 
   async current(runId: string): Promise<RunSummary> {
-    return summary(await loadRun(this.options.dataDir, assertRunId(runId)));
+    return summary(await this.options.runtime.load(assertRunId(runId)));
   }
 
   async traces(runId: string): Promise<unknown[]> {
-    return readTraces(this.options.dataDir, assertRunId(runId));
+    return this.options.runtime.readTraces(assertRunId(runId));
   }
 
   async start(scenarioId: ScenarioId): Promise<RunSummary> {
@@ -97,7 +90,7 @@ export class WorkflowController {
       throw new ControllerError("UNKNOWN_SCENARIO", scenarioId);
     }
     const now = this.options.clock.now();
-    const runId = randomUUID();
+    const runId = newId();
     const run: PersistedRun = {
       schemaVersion: SCHEMA_VERSION,
       checksum: "",
@@ -120,8 +113,8 @@ export class WorkflowController {
       lastError: null,
       terminalReason: null,
     };
-    await mkdir(workspacePath(this.options.dataDir, runId), { recursive: true });
-    await saveRun(this.options.dataDir, run);
+    await this.options.runtime.ensureWorkspace(runId);
+    await this.options.runtime.save(run);
     await this.trace(run, "run_started", { scenarioId });
     return summary(run);
   }
@@ -129,7 +122,7 @@ export class WorkflowController {
   async step(runId: string): Promise<RunSummary> {
     assertRunId(runId);
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       return this.stepLocked(run);
     });
   }
@@ -153,7 +146,7 @@ export class WorkflowController {
 
   async approve(runId: string, gateId: string): Promise<RunSummary> {
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       if (run.status !== "awaiting_human" || !run.pendingGate) {
         throw new ControllerError(
           "NO_PENDING_GATE",
@@ -172,7 +165,7 @@ export class WorkflowController {
         run.pendingGate = null;
         run.terminalReason = "human_complete_approval";
         run.updatedAtMs = this.options.clock.now();
-        await saveRun(this.options.dataDir, run);
+        await this.options.runtime.save(run);
         return summary(run);
       }
       if (gateId === GATE_IDS.spec) {
@@ -184,14 +177,14 @@ export class WorkflowController {
       run.status = "running";
       run.pendingGate = null;
       run.updatedAtMs = this.options.clock.now();
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     });
   }
 
   async reject(runId: string, gateId: string): Promise<RunSummary> {
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       if (!run.pendingGate || run.pendingGate.id !== gateId) {
         throw new ControllerError("GATE_MISMATCH", "rejeição sem gate correspondente");
       }
@@ -200,14 +193,14 @@ export class WorkflowController {
       run.pendingGate = null;
       run.updatedAtMs = this.options.clock.now();
       await this.trace(run, "human_rejected", { gateId });
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     });
   }
 
   async cancel(runId: string): Promise<RunSummary> {
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       if (isTerminal(run)) {
         throw new ControllerError("ALREADY_TERMINAL", run.status);
       }
@@ -216,59 +209,57 @@ export class WorkflowController {
       run.pendingGate = null;
       run.updatedAtMs = this.options.clock.now();
       await this.trace(run, "cancelled", {});
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     });
   }
 
   async interrupt(runId: string): Promise<RunSummary> {
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       if (isTerminal(run)) {
         throw new ControllerError("ALREADY_TERMINAL", run.status);
       }
       run.status = "interrupted";
       run.updatedAtMs = this.options.clock.now();
       await this.trace(run, "interrupted", { phase: run.phase });
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     });
   }
 
   async resume(runId: string, opts?: { forceUnlock?: boolean }): Promise<RunSummary> {
     assertRunId(runId);
-    const peek = await loadRun(this.options.dataDir, runId);
+    const peek = await this.options.runtime.load(runId);
     if (peek.status !== "interrupted") {
-      throw new ControllerError(
-        "RESUME_INVALID",
-        `resume só retoma interrupt cooperativo (status=${peek.status}). Crash com lock órfão não é interrupt: use force-unlock e depois step.`,
-      );
+      throw new ControllerError("RESUME_INVALID", resumeInvalidMessage(peek.status));
     }
     if (opts?.forceUnlock) {
-      await forceUnlock(this.options.dataDir, runId);
+      await this.options.runtime.forceUnlock(runId);
     }
     return this.withExclusive(runId, async () => {
-      const run = await loadRun(this.options.dataDir, runId);
+      const run = await this.options.runtime.load(runId);
       if (run.status !== "interrupted") {
-        throw new ControllerError(
-          "RESUME_INVALID",
-          `resume só a partir de interrupted (status=${run.status})`,
-        );
+        throw new ControllerError("RESUME_INVALID", resumeInvalidMessage(run.status));
       }
       run.status = run.pendingGate ? "awaiting_human" : "running";
       run.updatedAtMs = this.options.clock.now();
       await this.trace(run, "resumed", { phase: run.phase, attempt: run.attempt });
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     });
   }
 
   async forceUnlock(runId: string): Promise<void> {
-    await forceUnlock(this.options.dataDir, assertRunId(runId));
+    await this.options.runtime.forceUnlock(assertRunId(runId));
   }
 
   stateFile(runId: string): string {
-    return statePath(this.options.dataDir, runId);
+    const path = this.options.runtime.statePath?.(runId);
+    if (!path) {
+      throw new ControllerError("NO_STATE_PATH", "runtime sem path de ficheiro");
+    }
+    return path;
   }
 
   private async stepLocked(run: PersistedRun): Promise<RunSummary> {
@@ -309,7 +300,7 @@ export class WorkflowController {
       run.status = "failed_closed";
       run.terminalReason = entryError;
       run.lastError = entryError;
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       await this.trace(run, "fail_closed_entry", { entryError });
       return summary(run);
     }
@@ -324,7 +315,8 @@ export class WorkflowController {
       scenarioId: run.scenarioId,
       phase: run.phase,
       attempt: run.attempt,
-      workspaceDir: workspacePath(this.options.dataDir, run.runId),
+      workspaceDir: this.options.runtime.workspaceLabel(run.runId),
+      workspace: this.options.runtime.workspace(run.runId),
       spec: run.artifacts.spec,
       plan: run.artifacts.plan,
       lastEvidence: run.lastEvidence,
@@ -376,7 +368,7 @@ export class WorkflowController {
       run.artifacts.implementation = parsed.value;
       run.phase = "verification";
       run.status = "running";
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       await this.trace(run, "implementation_written", {
         filesWritten: result.filesWritten,
       });
@@ -408,15 +400,7 @@ export class WorkflowController {
   }
 
   private async runVerificationPhase(run: PersistedRun): Promise<RunSummary> {
-    const filters = join(
-      workspacePath(this.options.dataDir, run.runId),
-      "filters.mjs",
-    );
-    const workspaceDir = workspacePath(this.options.dataDir, run.runId);
-    const evidence = runVerification(filters, {
-      workspaceDir,
-      fixturesAbsPath: PRODUCT_FIXTURES,
-    });
+    const evidence = await this.options.runtime.verify(run.runId);
     const parsed = validateVerificationEvidence(evidence);
     if (!parsed.ok) {
       return this.failClosed(run, "EVIDENCE_INVALID", parsed.issues);
@@ -439,7 +423,7 @@ export class WorkflowController {
         run.completedPhases.push("verification");
       }
       run.updatedAtMs = this.options.clock.now();
-      await saveRun(this.options.dataDir, run);
+      await this.options.runtime.save(run);
       return summary(run);
     }
 
@@ -457,7 +441,7 @@ export class WorkflowController {
     await this.trace(run, "verification_return_to_implementation", {
       nextAttempt: run.attempt,
     });
-    await saveRun(this.options.dataDir, run);
+    await this.options.runtime.save(run);
     return summary(run);
   }
 
@@ -478,7 +462,7 @@ export class WorkflowController {
     run.status = "awaiting_human";
     run.pendingGate = gate;
     run.updatedAtMs = this.options.clock.now();
-    await saveRun(this.options.dataDir, run);
+    await this.options.runtime.save(run);
     await this.trace(run, "human_gate", { gateId: gate.id, phase: gate.phase });
     return summary(run);
   }
@@ -487,7 +471,7 @@ export class WorkflowController {
     run.status = "exhausted";
     run.terminalReason = reason;
     run.updatedAtMs = this.options.clock.now();
-    await saveRun(this.options.dataDir, run);
+    await this.options.runtime.save(run);
     await this.trace(run, "exhausted", { reason });
     return summary(run);
   }
@@ -501,7 +485,7 @@ export class WorkflowController {
     run.terminalReason = code;
     run.lastError = JSON.stringify(issues);
     run.updatedAtMs = this.options.clock.now();
-    await saveRun(this.options.dataDir, run);
+    await this.options.runtime.save(run);
     await this.trace(run, "fail_closed", { code, issues });
     return summary(run);
   }
@@ -511,7 +495,7 @@ export class WorkflowController {
     event: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    await appendTrace(this.options.dataDir, {
+    await this.options.runtime.appendTrace({
       tsMs: this.options.clock.now(),
       runId: run.runId,
       event,
@@ -529,10 +513,9 @@ export class WorkflowController {
       );
     }
     this.inProcessLocks.add(runId);
-    const holderId = randomUUID();
+    const holderId = newId();
     try {
-      await acquireRunLock(
-        this.options.dataDir,
+      await this.options.runtime.acquireLock(
         runId,
         holderId,
         this.options.clock.now(),
@@ -540,19 +523,11 @@ export class WorkflowController {
       return await fn();
     } finally {
       try {
-        await releaseRunLock(this.options.dataDir, runId, holderId);
+        await this.options.runtime.releaseLock(runId, holderId);
       } catch {
-        // release best-effort; fail-closed on next acquire if leftover
+        // release best-effort
       }
       this.inProcessLocks.delete(runId);
     }
   }
-}
-
-export async function writePointer(dataDir: string, runId: string): Promise<void> {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(
-    join(dataDir, "current.json"),
-    `${JSON.stringify({ runId: assertRunId(runId) })}\n`,
-  );
 }

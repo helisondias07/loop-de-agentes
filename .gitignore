@@ -3,6 +3,7 @@ logs
 npm-debug.log*
 node_modules
 dist
+dist-static
 dist-ssr
 *.local
 .loop-runs

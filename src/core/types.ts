@@ -138,11 +138,16 @@ export interface RunSummary {
   lastError: string | null;
   terminalReason: string | null;
   completedPhases: PhaseId[];
-  simulationBanner: "Simulação determinística — sem chamadas a modelos";
+  simulationBanner: string;
 }
 
 export interface Clock {
   now(): number;
+}
+
+export interface WorkspaceIO {
+  write(relPath: string, contents: string): Promise<void>;
+  read(relPath: string): Promise<string | null>;
 }
 
 export interface AgentInvokeInput {
@@ -151,6 +156,7 @@ export interface AgentInvokeInput {
   phase: PhaseId;
   attempt: number;
   workspaceDir: string;
+  workspace: WorkspaceIO;
   spec?: SpecArtifact;
   plan?: PlanArtifact;
   lastEvidence: VerificationEvidence | null;
@@ -180,6 +186,9 @@ export class ControllerError extends Error {
 
 export const SIMULATION_BANNER =
   "Simulação determinística — sem chamadas a modelos" as const;
+
+export const STATIC_DEMO_BANNER =
+  "Simulação neste browser — gates humanos explícitos, sem LLM, dados só neste navegador" as const;
 
 export const PHASE_ORDER: PhaseId[] = [
   "spec",

@@ -50,7 +50,8 @@ fica documentado como **não executado**.
 
 ## Limites
 
-Zero LLM. Sem loja real. Sem executor de shell genérico. Sem validação
+Demo estático (`dist-static/`) corre o mesmo controlador no browser com
+`localStorage`, sem `/api`. Zero LLM. Sem loja real. Sem executor de shell genérico. Sem validação
 ponta a ponta de agente live. Sem claims de skill Claude Code. Cancel e
 interrupt são cooperativos entre passos (não abortam `spawnSync`). Gates
 usam ids estáticos, sem nonce. Traces e `state.json` não são transação

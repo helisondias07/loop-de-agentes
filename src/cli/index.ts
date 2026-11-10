@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createController } from "../core/factory.ts";
-import { writePointer } from "../core/controller.ts";
+import { writePointer } from "../core/persist.ts";
 import { SIMULATION_BANNER, type ScenarioId } from "../core/types.ts";
 import { ControllerError } from "../core/types.ts";
 import { CursorAgentCliAdapter } from "../harness/cursor-cli-adapter.ts";
@@ -87,6 +87,7 @@ async function main(): Promise<void> {
           phase: "spec",
           attempt: 1,
           workspaceDir: dataDir,
+          workspace: { write: async () => {}, read: async () => null },
           lastEvidence: null,
         });
       } catch (error) {

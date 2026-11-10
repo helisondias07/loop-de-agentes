@@ -1,6 +1,3 @@
-import { copyFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type {
   AgentAdapter,
   AgentInvokeInput,
@@ -9,9 +6,7 @@ import type {
   PlanArtifact,
   SpecArtifact,
 } from "../core/types.ts";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const TASK = join(here, "..", "task");
+import { FILTER_SOURCE_BROKEN, FILTER_SOURCE_CORRECT } from "../task/filter-sources.ts";
 
 const SPEC: SpecArtifact = {
   kind: "spec",
@@ -32,17 +27,15 @@ const PLAN: PlanArtifact = {
   steps: [
     "Copiar fixtures locais para o workspace da run",
     "Exportar applyFilters em filters.mjs",
-    "Rodar o verify-runner fixo (node, argv fechado) e só então revisar",
+    "Rodar a verificação determinística (node runner ou check in-browser) e só então revisar",
   ],
   verificationStrategy:
-    "Processo node src/task/verify-runner.mjs --filters <workspace>/filters.mjs --fixtures fixtures/products.json; evidência = stdout/stderr/exitCode.",
+    "Node: verify-runner.mjs de argv fechado. Browser: runCatalogChecks sobre o source gravado. Evidência = stdout/stderr/exitCode reais.",
   rollbackNote:
     "Se a verificação falhar, o controlador devolve à implementação com a evidência; não há executor de shell genérico.",
 };
 
-function implementation(
-  notes: string,
-): ImplementationArtifact {
+function implementation(notes: string): ImplementationArtifact {
   return { kind: "implementation", sourceRelPath: "filters.mjs", notes };
 }
 
@@ -51,7 +44,6 @@ export class DeterministicHarness implements AgentAdapter {
   readonly implemented = true;
 
   async invoke(input: AgentInvokeInput): Promise<AgentInvokeResult> {
-    await mkdir(input.workspaceDir, { recursive: true });
     if (input.phase === "spec") {
       const claimed =
         input.scenarioId === "model-approval-ignored"
@@ -78,18 +70,9 @@ export class DeterministicHarness implements AgentAdapter {
       const broken =
         input.scenarioId === "retry-exhaustion" ||
         (input.scenarioId === "verification-repair" && input.attempt === 1);
-      const source = join(
-        TASK,
-        broken ? "filters-broken.mjs" : "filters-correct.mjs",
-      );
-      const dest = join(input.workspaceDir, "filters.mjs");
-      await copyFile(source, dest);
-      await copyFile(
-        join(TASK, "fixtures", "products.json"),
-        join(input.workspaceDir, "products.json"),
-      );
-      const bytes = await readFile(dest, "utf8");
-      if (!bytes.includes("export function applyFilters")) {
+      const source = broken ? FILTER_SOURCE_BROKEN : FILTER_SOURCE_CORRECT;
+      await input.workspace.write("filters.mjs", source);
+      if (!source.includes("export function applyFilters")) {
         throw new Error("cópia da implementação falhou");
       }
       return {
@@ -103,12 +86,12 @@ export class DeterministicHarness implements AgentAdapter {
               : "attempt com applyFilters completo",
           ),
         },
-        filesWritten: ["filters.mjs", "products.json"],
+        filesWritten: ["filters.mjs"],
       };
     }
     if (input.phase === "verification") {
       return {
-        text: "o controlador executa o runner; o harness não afirma passagem",
+        text: "o controlador executa o verificador; o harness não afirma passagem",
         artifacts: {},
         filesWritten: [],
       };
@@ -121,7 +104,7 @@ export class DeterministicHarness implements AgentAdapter {
             kind: "review",
             findings: [],
             scopeCheck:
-              "Apenas fixtures sintéticas; nenhuma loja real; evidência veio do verify-runner.",
+              "Apenas fixtures sintéticas; nenhuma loja real; evidência veio do verificador.",
           },
         },
         filesWritten: [],

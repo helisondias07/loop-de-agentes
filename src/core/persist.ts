@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { sha256Json } from "./checksum.ts";
+import { assertRunId } from "./runId.ts";
 import { ControllerError, SCHEMA_VERSION, type PersistedRun } from "./types.ts";
 
 const ALLOWED_STATUS = new Set([
@@ -23,7 +24,7 @@ const ALLOWED_PHASE = new Set([
 ]);
 
 export function runDir(dataDir: string, runId: string): string {
-  return join(dataDir, "runs", runId);
+  return join(dataDir, "runs", assertRunId(runId));
 }
 
 export function statePath(dataDir: string, runId: string): string {
@@ -67,7 +68,12 @@ export function parsePersistedRun(raw: unknown, expectedRunId?: string): Persist
   if (typeof obj.checksum !== "string" || obj.checksum.length !== 64) {
     throw new ControllerError("CORRUPT_STATE", "checksum ausente ou inválido");
   }
-  if (typeof obj.runId !== "string" || obj.runId.length < 8) {
+  if (typeof obj.runId !== "string") {
+    throw new ControllerError("CORRUPT_STATE", "runId inválido");
+  }
+  try {
+    assertRunId(obj.runId);
+  } catch {
     throw new ControllerError("CORRUPT_STATE", "runId inválido");
   }
   if (expectedRunId && obj.runId !== expectedRunId) {

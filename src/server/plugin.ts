@@ -6,6 +6,8 @@ import { createController } from "../core/factory.ts";
 import { writePointer } from "../core/controller.ts";
 import { SIMULATION_BANNER, type ScenarioId } from "../core/types.ts";
 import { ControllerError } from "../core/types.ts";
+import { requireExplicitGateId } from "../core/gates.ts";
+import { assertRunId } from "../core/runId.ts";
 
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -31,8 +33,12 @@ export function loopApiPlugin(dataDir = join(process.cwd(), ".loop-runs")): Plug
       const raw = JSON.parse(await readFile(join(dataDir, "current.json"), "utf8")) as {
         runId?: string | null;
       };
-      return typeof raw.runId === "string" ? raw.runId : null;
-    } catch {
+      if (typeof raw.runId !== "string") return null;
+      return assertRunId(raw.runId);
+    } catch (error) {
+      if (error instanceof ControllerError && error.code === "INVALID_RUN_ID") {
+        throw error;
+      }
       return null;
     }
   }
@@ -98,9 +104,7 @@ export function loopApiPlugin(dataDir = join(process.cwd(), ".loop-runs")): Plug
             const body = await readBody(req);
             const runId = await pointer();
             if (!runId) throw new ControllerError("NO_RUN", "nenhuma run ativa");
-            const gateId =
-              (body.gateId as string) || (await controller.current(runId)).pendingGate?.id;
-            if (!gateId) throw new ControllerError("NO_PENDING_GATE", "sem gate");
+            const gateId = requireExplicitGateId(body.gateId);
             const run = await controller.approve(runId, gateId);
             const traces = await controller.traces(runId);
             send(res, 200, { banner: SIMULATION_BANNER, run, traces });
@@ -110,7 +114,7 @@ export function loopApiPlugin(dataDir = join(process.cwd(), ".loop-runs")): Plug
             const body = await readBody(req);
             const runId = await pointer();
             if (!runId) throw new ControllerError("NO_RUN", "nenhuma run ativa");
-            const gateId = body.gateId as string;
+            const gateId = requireExplicitGateId(body.gateId);
             const run = await controller.reject(runId, gateId);
             const traces = await controller.traces(runId);
             send(res, 200, { banner: SIMULATION_BANNER, run, traces });

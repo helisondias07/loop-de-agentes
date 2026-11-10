@@ -51,9 +51,16 @@ https://joaoraul.dev/writing/superpowered-ralph/ — LICENSE MIT no SHA
 ## Segurança do fluxo
 
 - Texto do modelo/harness nunca concede aprovação humana.
-- Verificação = stdout/stderr/exitCode do runner fixo, não afirmação textual.
-- Fail-closed em estado corrupto, schema divergente ou lock órfão.
-- Sem executor de shell genérico.
+- Verificação = JSON final do runner (`ok === true` e `tested === 6`) + exit 0.
+- Fail-closed em estado corrupto, schema divergente, `runId` não-UUID ou lock órfão.
+- Sem executor de shell genérico. `--filters` não segue symlink; fixtures só o catálogo empacotado.
+- HTTP `/api/approve` exige `gateId` explícito igual ao gate pendente.
+
+### Crash vs cancel/interrupt
+
+- `interrupt`/`resume`: só entre passos, status `interrupted`.
+- Crash com `running` + `run.lock` órfão: `force-unlock` e depois `step`. `resume --force-unlock` **não** apaga o lock se o status não for `interrupted`.
+- `cancel`/`interrupt` **não** abortam o `spawnSync` da verificação (timeout 8s). São cooperativos no passo seguinte.
 
 Janelas de crash: `docs/CRASH_WINDOWS.md`. Adapter Cursor: `docs/CURSOR_CLI_BOUNDARY.md`.
 Caso de portfólio (pt-BR): `CASE.md`.

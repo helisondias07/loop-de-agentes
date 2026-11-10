@@ -118,10 +118,8 @@ export interface PersistedRun {
   };
   lastEvidence: VerificationEvidence | null;
   ignoredModelClaims: string[];
-  cancelRequested: boolean;
   lastError: string | null;
   terminalReason: string | null;
-  implementationAttemptAtPhase: number;
 }
 
 export interface RunSummary {

@@ -103,7 +103,7 @@ report.keyboard.push("Tab após spec-approval");
 
 for (let i = 0; i < 10; i += 1) {
   const status = await page.evaluate(
-    () => document.querySelector(".status-pill")?.textContent.trim() ?? "",
+    () => (document.querySelector(".status-pill")?.textContent.trim() ?? "").toLowerCase(),
   );
   if (status === "completed") {
     report.flow.push(`completed após ${i} iterações de UI`);
@@ -132,12 +132,15 @@ for (let i = 0; i < 10; i += 1) {
 
 await shot("ui-desktop-completed-1280x800", 1280, 800);
 const body = await page.evaluate(() => document.body.innerText);
+const pill = await page.evaluate(
+  () => (document.querySelector(".status-pill")?.textContent ?? "").trim().toLowerCase(),
+);
 report.flow.push({
-  hasVerifyRunner: body.includes("verify-runner"),
-  hasExitCode: body.includes("exitCode"),
-  hasCompleted: body.includes("completed") && !body.includes("Nenhuma run"),
+  hasVerifyRunner: body.toLowerCase().includes("verify-runner"),
+  hasExitCode: /exitcode/i.test(body),
+  hasCompleted: pill === "completed",
   hasBanner: body.includes("Simulação determinística — sem chamadas a modelos"),
-  hasPassed: body.includes("passed=true") || body.includes("passed=true".replace("=", "=")),
+  hasPassed: /passed\s*=\s*true/i.test(body),
 });
 
 await page.keyboard.press("2");
@@ -179,7 +182,12 @@ report.keyboard.push({ focusVisible: outline });
 
 await writeFile(`${OUT}/e2e-ui-report.json`, `${JSON.stringify(report, null, 2)}\n`);
 await browser.close();
-if (!report.flow.some((item) => item && item.hasCompleted)) {
+const completed =
+  report.flow.some((item) => item && typeof item === "object" && item.hasCompleted) ||
+  report.flow.some(
+    (item) => typeof item === "string" && item.toLowerCase().includes("completed"),
+  );
+if (!completed) {
   console.error(JSON.stringify(report, null, 2));
   throw new Error("E2E não observou status completed na UI");
 }

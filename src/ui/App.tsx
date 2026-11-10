@@ -318,6 +318,22 @@ npx tsx src/cli/index.ts demo-success`}</pre>
               <li>Adapter live do Cursor CLI não é executado nem validado ponta a ponta.</li>
               <li>Protocolo de baseline/benchmark não foi executado; sem números inventados.</li>
               <li>Catálogo sintético local; nenhum dado de loja ou cliente real.</li>
+              <li>
+                Cancelar/interromper é cooperativo entre passos: não aborta o{" "}
+                <code>spawnSync</code> da verificação em curso.
+              </li>
+              <li>
+                Crash com lock órfão ≠ interrupt: use force-unlock e depois passo;
+                resume só com status interrupted.
+              </li>
+              <li>
+                Gates têm ids estáticos (sem nonce). Aprovar na API exige{" "}
+                <code>gateId</code> explícito.
+              </li>
+              <li>
+                Traces e <code>state.json</code> não são uma transação única (o
+                último evento de trace pode faltar após crash).
+              </li>
             </ul>
           </article>
         ) : null}

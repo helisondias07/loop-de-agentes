@@ -204,7 +204,7 @@ describe("workflow controller", () => {
 
   it("acquireRunLock detecta titular vivo", async () => {
     const { dataDir } = await tempController();
-    const runId = "lock-live-test";
+    const runId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
     await acquireRunLock(dataDir, runId, "a", 1);
     await expect(acquireRunLock(dataDir, runId, "b", 2)).rejects.toMatchObject({
       code: "CONCURRENT_EXECUTION",

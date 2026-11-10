@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 /**
  * Runner fixo de verificação. Não é um executor de shell genérico:
- * apenas lê --filters e --fixtures, importa o módulo e compara com casos locais.
+ * --filters deve ser ficheiro regular dentro de --workspace;
+ * --fixtures só o catálogo empacotado (ficheiro regular, realpath idêntico).
  */
+import { lstatSync, realpathSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+export const EXPECTED_TEST_COUNT = 6;
+export const PACKAGED_FIXTURES = join(here, "fixtures", "products.json");
 
 function arg(name) {
   const index = process.argv.indexOf(name);
@@ -12,6 +19,30 @@ function arg(name) {
     throw new Error(`argumento obrigatório ausente: ${name}`);
   }
   return process.argv[index + 1];
+}
+
+function assertRegular(abs) {
+  let st;
+  try {
+    st = lstatSync(abs);
+  } catch {
+    throw new Error(`UNSAFE_PATH: inexistente ${abs}`);
+  }
+  if (st.isSymbolicLink()) {
+    throw new Error("UNSAFE_PATH: symlink recusado");
+  }
+  if (!st.isFile()) {
+    throw new Error("UNSAFE_PATH: não é ficheiro regular");
+  }
+  return realpathSync(abs);
+}
+
+function assertInside(realFile, rootDir) {
+  const root = realpathSync(resolve(rootDir));
+  const prefix = root.endsWith(sep) ? root : `${root}${sep}`;
+  if (realFile !== root && !realFile.startsWith(prefix)) {
+    throw new Error("UNSAFE_PATH: realpath fora do workspace");
+  }
 }
 
 function ids(rows) {
@@ -37,11 +68,21 @@ function referenceApply(products, query = {}) {
   });
 }
 
+const workspaceDir = arg("--workspace");
 const filtersPath = arg("--filters");
 const fixturesPath = arg("--fixtures");
 
-const products = JSON.parse(await readFile(fixturesPath, "utf8"));
-const mod = await import(pathToFileURL(filtersPath).href);
+const filtersReal = assertRegular(resolve(filtersPath));
+assertInside(filtersReal, workspaceDir);
+
+const fixturesReal = assertRegular(resolve(fixturesPath));
+const packagedReal = assertRegular(PACKAGED_FIXTURES);
+if (fixturesReal !== packagedReal) {
+  throw new Error("UNSAFE_PATH: fixtures só o catálogo empacotado");
+}
+
+const products = JSON.parse(await readFile(fixturesReal, "utf8"));
+const mod = await import(pathToFileURL(filtersReal).href);
 if (typeof mod.applyFilters !== "function") {
   throw new Error("applyFilters não exportado");
 }
@@ -57,6 +98,10 @@ const cases = [
     query: { category: "eletronicos", inStock: true },
   },
 ];
+
+if (cases.length !== EXPECTED_TEST_COUNT) {
+  throw new Error("EXPECTED_TEST_COUNT dessincronizado");
+}
 
 const results = [];
 for (const testCase of cases) {

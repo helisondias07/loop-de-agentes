@@ -14,5 +14,8 @@ Campos principais:
 | pendingGate | só preenchido pelo controlador |
 | lastEvidence | stdout/stderr/exitCode/argv do verify-runner |
 | ignoredModelClaims | tentativas do harness de “aprovar” |
+| pendingGate.id | ids estáticos `spec-approval` / `plan-approval` / `complete-approval` (sem nonce) |
 
-Ponteiro da UI/CLI: `.loop-runs/current.json`.
+`runId` é UUID. Ponteiro da UI/CLI: `.loop-runs/current.json`.
+Campo morto `implementationAttemptAtPhase` / `cancelRequested` foram removidos
+(não eram lidos). Traces não são transacionais com `state.json`.

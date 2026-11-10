@@ -53,7 +53,7 @@ export async function acquireRunLock(
     }
     throw new ControllerError(
       "STALE_LOCK",
-      `lock órfão (pid ${existing.pid} morto). Resume exige forceUnlock humano. Janela de crash: processo morreu após criar o lock e antes de removê-lo.`,
+      `lock órfão (pid ${existing.pid} morto). Use force-unlock e depois step. Crash ≠ interrupt. Janela: processo morreu após criar o lock e antes de removê-lo.`,
     );
   }
 }

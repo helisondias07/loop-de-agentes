@@ -31,12 +31,8 @@ import {
   type ScenarioId,
 } from "./types.ts";
 import { PRODUCT_FIXTURES, runVerification } from "../task/verify.ts";
-
-const GATES = {
-  spec: "spec-approval",
-  plan: "plan-approval",
-  complete: "complete-approval",
-} as const;
+import { GATE_IDS } from "./gates.ts";
+import { assertRunId } from "./runId.ts";
 
 export interface ControllerOptions {
   dataDir: string;
@@ -88,11 +84,11 @@ export class WorkflowController {
   }
 
   async current(runId: string): Promise<RunSummary> {
-    return summary(await loadRun(this.options.dataDir, runId));
+    return summary(await loadRun(this.options.dataDir, assertRunId(runId)));
   }
 
   async traces(runId: string): Promise<unknown[]> {
-    return readTraces(this.options.dataDir, runId);
+    return readTraces(this.options.dataDir, assertRunId(runId));
   }
 
   async start(scenarioId: ScenarioId): Promise<RunSummary> {
@@ -121,10 +117,8 @@ export class WorkflowController {
       artifacts: {},
       lastEvidence: null,
       ignoredModelClaims: [],
-      cancelRequested: false,
       lastError: null,
       terminalReason: null,
-      implementationAttemptAtPhase: 1,
     };
     await mkdir(workspacePath(this.options.dataDir, runId), { recursive: true });
     await saveRun(this.options.dataDir, run);
@@ -133,6 +127,7 @@ export class WorkflowController {
   }
 
   async step(runId: string): Promise<RunSummary> {
+    assertRunId(runId);
     return this.withExclusive(runId, async () => {
       const run = await loadRun(this.options.dataDir, runId);
       return this.stepLocked(run);
@@ -172,7 +167,7 @@ export class WorkflowController {
         );
       }
       await this.trace(run, "human_approved", { gateId, source: "controller" });
-      if (gateId === GATES.complete) {
+      if (gateId === GATE_IDS.complete) {
         run.status = "completed";
         run.pendingGate = null;
         run.terminalReason = "human_complete_approval";
@@ -180,9 +175,9 @@ export class WorkflowController {
         await saveRun(this.options.dataDir, run);
         return summary(run);
       }
-      if (gateId === GATES.spec) {
+      if (gateId === GATE_IDS.spec) {
         run.phase = "plan";
-      } else if (gateId === GATES.plan) {
+      } else if (gateId === GATE_IDS.plan) {
         run.phase = "implementation";
         run.attempt = 1;
       }
@@ -217,7 +212,6 @@ export class WorkflowController {
         throw new ControllerError("ALREADY_TERMINAL", run.status);
       }
       run.status = "cancelled";
-      run.cancelRequested = true;
       run.terminalReason = "human_cancel";
       run.pendingGate = null;
       run.updatedAtMs = this.options.clock.now();
@@ -242,6 +236,14 @@ export class WorkflowController {
   }
 
   async resume(runId: string, opts?: { forceUnlock?: boolean }): Promise<RunSummary> {
+    assertRunId(runId);
+    const peek = await loadRun(this.options.dataDir, runId);
+    if (peek.status !== "interrupted") {
+      throw new ControllerError(
+        "RESUME_INVALID",
+        `resume só retoma interrupt cooperativo (status=${peek.status}). Crash com lock órfão não é interrupt: use force-unlock e depois step.`,
+      );
+    }
     if (opts?.forceUnlock) {
       await forceUnlock(this.options.dataDir, runId);
     }
@@ -262,7 +264,7 @@ export class WorkflowController {
   }
 
   async forceUnlock(runId: string): Promise<void> {
-    await forceUnlock(this.options.dataDir, runId);
+    await forceUnlock(this.options.dataDir, assertRunId(runId));
   }
 
   stateFile(runId: string): string {
@@ -344,7 +346,7 @@ export class WorkflowController {
       run.artifacts.spec = parsed.value;
       run.completedPhases = ["spec"];
       return this.holdGate(run, {
-        id: GATES.spec,
+        id: GATE_IDS.spec,
         phase: "spec",
         reason: "Aprovar spec antes do plano (somente controlador).",
         createdAtMs: now,
@@ -359,7 +361,7 @@ export class WorkflowController {
       run.artifacts.plan = parsed.value;
       run.completedPhases = ["spec", "plan"];
       return this.holdGate(run, {
-        id: GATES.plan,
+        id: GATE_IDS.plan,
         phase: "plan",
         reason: "Aprovar plano antes da implementação (somente controlador).",
         createdAtMs: now,
@@ -395,7 +397,7 @@ export class WorkflowController {
         "review",
       ];
       return this.holdGate(run, {
-        id: GATES.complete,
+        id: GATE_IDS.complete,
         phase: "review",
         reason: "Aprovar conclusão da run (somente controlador).",
         createdAtMs: now,
@@ -410,7 +412,11 @@ export class WorkflowController {
       workspacePath(this.options.dataDir, run.runId),
       "filters.mjs",
     );
-    const evidence = runVerification(filters, PRODUCT_FIXTURES);
+    const workspaceDir = workspacePath(this.options.dataDir, run.runId);
+    const evidence = runVerification(filters, {
+      workspaceDir,
+      fixturesAbsPath: PRODUCT_FIXTURES,
+    });
     const parsed = validateVerificationEvidence(evidence);
     if (!parsed.ok) {
       return this.failClosed(run, "EVIDENCE_INVALID", parsed.issues);
@@ -545,5 +551,8 @@ export class WorkflowController {
 
 export async function writePointer(dataDir: string, runId: string): Promise<void> {
   await mkdir(dataDir, { recursive: true });
-  await writeFile(join(dataDir, "current.json"), `${JSON.stringify({ runId })}\n`);
+  await writeFile(
+    join(dataDir, "current.json"),
+    `${JSON.stringify({ runId: assertRunId(runId) })}\n`,
+  );
 }

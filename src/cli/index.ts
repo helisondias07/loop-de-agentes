@@ -5,6 +5,7 @@ import { writePointer } from "../core/controller.ts";
 import { SIMULATION_BANNER, type ScenarioId } from "../core/types.ts";
 import { ControllerError } from "../core/types.ts";
 import { CursorAgentCliAdapter } from "../harness/cursor-cli-adapter.ts";
+import { assertRunId } from "../core/runId.ts";
 
 function arg(name: string, fallback?: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -18,11 +19,11 @@ function hasFlag(name: string): boolean {
 
 async function currentRunId(dataDir: string): Promise<string> {
   const fromArg = arg("--run");
-  if (fromArg) return fromArg;
+  if (fromArg) return assertRunId(fromArg);
   const pointer = JSON.parse(await readFile(join(dataDir, "current.json"), "utf8")) as {
     runId: string;
   };
-  return pointer.runId;
+  return assertRunId(pointer.runId);
 }
 
 function printJson(value: unknown): void {
@@ -41,13 +42,22 @@ Uso:
   npx tsx src/cli/index.ts cancel
   npx tsx src/cli/index.ts interrupt
   npx tsx src/cli/index.ts resume [--force-unlock]
+  npx tsx src/cli/index.ts force-unlock
   npx tsx src/cli/index.ts status
   npx tsx src/cli/index.ts traces
   npx tsx src/cli/index.ts scenarios
   npx tsx src/cli/index.ts demo-success
   npx tsx src/cli/index.ts live-adapter-probe
 
-Opções: --data-dir DIR (padrão .loop-runs) --run RUN_ID
+Opções: --data-dir DIR (padrão .loop-runs) --run RUN_ID (UUID)
+
+Crash vs interrupt:
+  interrupt / resume  — só status=interrupted (cooperativo entre passos)
+  force-unlock        — apaga run.lock órfão; NÃO muda status
+  resume --force-unlock — só se já interrupted e o lock ficou órfão;
+                          se o status não for interrupted, NÃO apaga o lock
+
+Cancel/interrupt não abortam spawnSync de verificação em curso.
 
 O adapter live do Cursor CLI é só fronteira tipada e não é executado.
 `);
@@ -139,6 +149,11 @@ async function main(): Promise<void> {
     }
     if (cmd === "resume") {
       printJson(await controller.resume(runId, { forceUnlock: hasFlag("--force-unlock") }));
+      return;
+    }
+    if (cmd === "force-unlock") {
+      await controller.forceUnlock(runId);
+      printJson({ ok: true, runId, action: "force-unlock" });
       return;
     }
     if (cmd === "status") {

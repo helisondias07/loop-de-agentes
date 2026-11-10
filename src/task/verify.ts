@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { nodeProcessEvidence } from "../core/evidence.ts";
 import type { VerificationEvidence } from "../core/types.ts";
 import { ControllerError } from "../core/types.ts";
 import { assertRegularFileInside } from "./paths.ts";
@@ -28,15 +29,15 @@ export function runVerification(
     "--fixtures",
     fixturesAbsPath,
   ];
-  const fail = (exitCode: number, stderr: string): VerificationEvidence => ({
-    kind: "verification",
-    exitCode,
-    stdout: "",
-    stderr,
-    argv,
-    durationMs: 0,
-    passed: false,
-  });
+  const fail = (exitCode: number, stderr: string): VerificationEvidence =>
+    nodeProcessEvidence({
+      exitCode,
+      stdout: "",
+      stderr,
+      argv,
+      durationMs: 0,
+      passed: false,
+    });
 
   if (!existsSync(filtersAbsPath)) {
     return fail(2, `filters ausente: ${filtersAbsPath}\n`);
@@ -76,13 +77,12 @@ export function runVerification(
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? (result.error ? String(result.error) : "");
   const exitCode = typeof result.status === "number" ? result.status : 1;
-  return {
-    kind: "verification",
+  return nodeProcessEvidence({
     exitCode,
     stdout,
     stderr,
     argv,
     durationMs,
     passed: evaluationPassed(exitCode, stdout),
-  };
+  });
 }

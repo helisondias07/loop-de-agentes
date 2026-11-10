@@ -35,6 +35,8 @@ describe("round 3 — runtime em memória (mesmo controlador, verificador in-pag
     expect(done.status).toBe("completed");
     expect(done.lastEvidence?.passed).toBe(true);
     expect(done.lastEvidence?.argv[0]).toBe("in-browser-catalog-check");
+    expect(done.lastEvidence?.runner).toBe("in-browser");
+    expect(done.lastEvidence && "simulatedExitCode" in done.lastEvidence).toBe(true);
     expect(done.lastEvidence?.stdout).toContain('"tested": 6');
   });
 
@@ -57,10 +59,16 @@ describe("round 3 — verificador in-page", () => {
   it("source correto passa; source quebrado falha; não há passed hardcoded", () => {
     const ok = verifyFilterSource(FILTER_SOURCE_CORRECT);
     expect(ok.passed).toBe(true);
-    expect(ok.exitCode).toBe(0);
+    expect(ok.runner).toBe("in-browser");
+    if (ok.runner === "in-browser") {
+      expect(ok.simulatedExitCode).toBe(0);
+    }
+    expect("exitCode" in ok).toBe(false);
     const bad = verifyFilterSource(FILTER_SOURCE_BROKEN);
     expect(bad.passed).toBe(false);
-    expect(bad.exitCode).not.toBe(0);
+    if (bad.runner === "in-browser") {
+      expect(bad.simulatedExitCode).not.toBe(0);
+    }
     expect(bad.stderr).toMatch(/in-stock/);
   });
 });

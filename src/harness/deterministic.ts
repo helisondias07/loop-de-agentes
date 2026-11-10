@@ -30,7 +30,7 @@ const PLAN: PlanArtifact = {
     "Rodar a verificação determinística (node runner ou check in-browser) e só então revisar",
   ],
   verificationStrategy:
-    "Node: verify-runner.mjs de argv fechado. Browser: runCatalogChecks sobre o source gravado. Evidência = stdout/stderr/exitCode reais.",
+    "Node: verify-runner.mjs (runner=node-process, exitCode real). Browser: runCatalogChecks (runner=in-browser, simulatedExitCode; sem processo OS).",
   rollbackNote:
     "Se a verificação falhar, o controlador devolve à implementação com a evidência; não há executor de shell genérico.",
 };

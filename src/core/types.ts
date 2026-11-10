@@ -75,15 +75,34 @@ export interface ReviewArtifact {
   scopeCheck: string;
 }
 
-export interface VerificationEvidence {
+export const NODE_PROCESS_RUNNER = "node-process" as const;
+export const IN_BROWSER_RUNNER = "in-browser" as const;
+export type VerificationRunner = typeof NODE_PROCESS_RUNNER | typeof IN_BROWSER_RUNNER;
+
+export const IN_BROWSER_EXIT_NOTE =
+  "exitCode simulado (verificação no navegador, sem processo real)" as const;
+
+type EvidenceBase = {
   kind: "verification";
-  exitCode: number;
   stdout: string;
   stderr: string;
   argv: string[];
   durationMs: number;
   passed: boolean;
-}
+};
+
+export type NodeProcessEvidence = EvidenceBase & {
+  runner: typeof NODE_PROCESS_RUNNER;
+  exitCode: number;
+};
+
+export type InBrowserEvidence = EvidenceBase & {
+  runner: typeof IN_BROWSER_RUNNER;
+  simulatedExitCode: number;
+  honestyNote: typeof IN_BROWSER_EXIT_NOTE;
+};
+
+export type VerificationEvidence = NodeProcessEvidence | InBrowserEvidence;
 
 export interface TraceEvent {
   tsMs: number;

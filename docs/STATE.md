@@ -12,7 +12,7 @@ Campos principais:
 | phase | spec, plan, implementation, verification, review |
 | attempt / iteration / globalSteps / callsUsed | contadores vs `budgets` |
 | pendingGate | só preenchido pelo controlador |
-| lastEvidence | stdout/stderr/exitCode/argv do verify-runner |
+| lastEvidence | `runner` `node-process` (`exitCode` real) ou `in-browser` (`simulatedExitCode` + honestyNote; sem exitCode de processo) |
 | ignoredModelClaims | tentativas do harness de “aprovar” |
 | pendingGate.id | ids estáticos `spec-approval` / `plan-approval` / `complete-approval` (sem nonce) |
 

@@ -45,7 +45,12 @@ python3 -m http.server 43148 --directory dist-static
 
 Pasta de saída: `dist-static/`. Em hosting estático genérico: comando de build
 `npm run build:static`, diretório `dist-static`. Persistência: `localStorage`
-(JSON pequeno; inspecionável; sobrevive a reload no mesmo origin).
+(JSON pequeno; inspecionável; sobrevive a reload no mesmo origin). Lock: lease
+no `localStorage` (TTL 15s) partilhado entre tabs do mesmo origin — não é
+`wx` de ficheiro; um lease expirado pode ser tomado. Cancel/interrupt **não**
+abortam verificação em curso (Node `spawnSync`; browser check síncrono).
+Evidência in-browser: campo `simulatedExitCode` e `runner: "in-browser"`, nunca
+`exitCode` de processo.
 
 CLI:
 
@@ -65,7 +70,7 @@ https://joaoraul.dev/writing/superpowered-ralph/ — LICENSE MIT no SHA
 ## Segurança do fluxo
 
 - Texto do modelo/harness nunca concede aprovação humana.
-- Verificação = JSON final do runner (`ok === true` e `tested === 6`) + exit 0.
+- Verificação = JSON final (`ok === true` e `tested === 6`) e código 0: `exitCode` só no runner `node-process`; no browser é `simulatedExitCode` (sem processo OS).
 - Fail-closed em estado corrupto, schema divergente, `runId` não-UUID ou lock órfão.
 - Sem executor de shell genérico. `--filters` não segue symlink; fixtures só o catálogo empacotado.
 - HTTP `/api/approve` exige `gateId` explícito igual ao gate pendente.
@@ -74,7 +79,7 @@ https://joaoraul.dev/writing/superpowered-ralph/ — LICENSE MIT no SHA
 
 - `interrupt`/`resume`: só entre passos, status `interrupted`.
 - Crash com `running` + `run.lock` órfão: `force-unlock` e depois `step`. `resume --force-unlock` **não** apaga o lock se o status não for `interrupted`.
-- `cancel`/`interrupt` **não** abortam o `spawnSync` da verificação (timeout 8s). São cooperativos no passo seguinte.
+- `cancel`/`interrupt` **não** abortam verificação em curso (Node: `spawnSync` até 8s; demo estático: check síncrono in-page). São cooperativos no passo seguinte.
 
 Janelas de crash: `docs/CRASH_WINDOWS.md`. Adapter Cursor: `docs/CURSOR_CLI_BOUNDARY.md`.
 Caso de portfólio (pt-BR): `CASE.md`.

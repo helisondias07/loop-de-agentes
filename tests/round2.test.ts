@@ -96,7 +96,10 @@ describe("round 2 — B3 symlink e B4 JSON", () => {
     await symlink(evil, filters);
     const evidence = runVerification(filters, { workspaceDir: ws });
     expect(evidence.passed).toBe(false);
-    expect(evidence.exitCode).not.toBe(0);
+    expect(evidence.runner).toBe("node-process");
+    if (evidence.runner === "node-process") {
+      expect(evidence.exitCode).not.toBe(0);
+    }
     expect(evidence.stderr).toMatch(/UNSAFE_PATH|symlink/i);
     const stepped = await controller.step(gated.runId);
     expect(stepped.lastEvidence?.passed).toBe(false);

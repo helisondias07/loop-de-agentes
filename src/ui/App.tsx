@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatEvidence } from "../core/evidence.ts";
 import { STATIC_DEMO_BANNER } from "../core/types.ts";
 import { createBrowserClient } from "./browserClient.ts";
 import { createHttpClient } from "./httpClient.ts";
@@ -14,7 +15,7 @@ const PHASES: { id: PhaseId; label: string; entry: string }[] = [
   { id: "plan", label: "Plan", entry: "spec + gate spec-approval" },
   { id: "implementation", label: "Implementação", entry: "plan + gate plan-approval" },
   { id: "verification", label: "Verificação", entry: "filters.mjs real no workspace" },
-  { id: "review", label: "Review", entry: "evidência passed=true do runner" },
+  { id: "review", label: "Review", entry: "evidência passed=true (node-process ou in-browser)" },
 ];
 
 const DEFAULT_BANNER = STATIC
@@ -79,8 +80,7 @@ export default function App() {
 
   const evidence = useMemo(() => {
     if (!run?.lastEvidence) return "Nenhuma evidência de verificação ainda.";
-    const ev = run.lastEvidence;
-    return `passed=${ev.passed} exitCode=${ev.exitCode}\nargv=${ev.argv.join(" ")}\n--- stdout ---\n${ev.stdout}\n--- stderr ---\n${ev.stderr}`;
+    return formatEvidence(run.lastEvidence);
   }, [run]);
 
   return (
@@ -245,7 +245,9 @@ export default function App() {
               estático, o controlador corre neste browser com persistência em{" "}
               <code>localStorage</code> — sem <code>/api</code>. A verificação
               executa <code>runCatalogChecks</code> sobre o <code>filters.mjs</code>{" "}
-              gravado; não há “passed” hardcoded.
+              gravado; não há “passed” hardcoded. A evidência leva{" "}
+              <code>runner=in-browser</code> e <code>simulatedExitCode</code>, não
+              exitCode de processo.
             </p>
           </article>
         ) : null}
@@ -267,6 +269,21 @@ npx tsx src/cli/index.ts demo-success`}</pre>
             <ul>
               <li>Zero chamadas a modelos, rede de LLM ou autenticação de vendor.</li>
               <li>Demo estático: dados só neste navegador (localStorage); sem /api.</li>
+              <li>
+                Verificação in-browser usa <code>runner=in-browser</code> e{" "}
+                <code>simulatedExitCode</code> — não é um processo OS. Node local
+                continua com <code>runner=node-process</code> e <code>exitCode</code> real.
+              </li>
+              <li>
+                Lock estático: lease em localStorage (TTL 15s) partilhado entre tabs do
+                mesmo origin. Não é tão forte quanto <code>wx</code> em ficheiro; um
+                lease expirado pode ser roubado. Escolha: lease testável no mesmo mapa,
+                sem BroadcastChannel.
+              </li>
+              <li>
+                Cancel/interrupt <strong>não</strong> abortam uma verificação em curso
+                (Node: <code>spawnSync</code> até 8s; browser: check síncrono na página).
+              </li>
               <li>Adapter live do Cursor CLI não é executado nem validado ponta a ponta.</li>
               <li>Protocolo de baseline/benchmark não foi executado; sem números inventados.</li>
               <li>Catálogo sintético local; nenhum dado de loja ou cliente real.</li>

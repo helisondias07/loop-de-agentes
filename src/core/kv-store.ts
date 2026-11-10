@@ -1,3 +1,10 @@
+import { inBrowserEvidence } from "./evidence.ts";
+import {
+  acquireKvLock,
+  forceUnlockKv,
+  KV_PREFIX,
+  releaseKvLock,
+} from "./kv-lock.ts";
 import { assertRunId } from "./runId.ts";
 import { parsePersistedRun, withChecksum } from "./persist-codec.ts";
 import { ControllerError, type PersistedRun } from "./types.ts";
@@ -12,7 +19,7 @@ export interface KeyValue {
   key(index: number): string | null;
 }
 
-const PREFIX = "loop-de-agentes:v1:";
+const PREFIX = KV_PREFIX;
 
 /**
  * Persistência em mapa/localStorage. Escolha: localStorage no demo estático
@@ -100,48 +107,28 @@ export class KeyValueRuntime implements LoopRuntime {
   async verify(runId: string) {
     const source = await this.workspace(runId).read("filters.mjs");
     if (!source) {
-      return {
-        kind: "verification" as const,
-        exitCode: 2,
+      return inBrowserEvidence({
+        simulatedExitCode: 2,
         stdout: "",
         stderr: "filters.mjs ausente no armazenamento local\n",
         argv: ["in-browser-catalog-check", "filters.mjs"],
         durationMs: 0,
         passed: false,
-      };
+      });
     }
     return verifyFilterSource(source);
   }
 
   async acquireLock(runId: string, holderId: string, nowMs: number): Promise<void> {
-    const key = this.k(`lock:${runId}`);
-    const existing = this.kv.getItem(key);
-    if (existing) {
-      throw new ControllerError(
-        "CONCURRENT_EXECUTION",
-        "execução concorrente no armazenamento local",
-      );
-    }
-    this.kv.setItem(key, JSON.stringify({ holderId, acquiredAtMs: nowMs }));
+    acquireKvLock(this.kv, runId, holderId, nowMs);
   }
 
   async releaseLock(runId: string, holderId: string): Promise<void> {
-    const key = this.k(`lock:${runId}`);
-    const raw = this.kv.getItem(key);
-    if (!raw) return;
-    try {
-      const rec = JSON.parse(raw) as { holderId: string };
-      if (rec.holderId !== holderId) {
-        throw new ControllerError("LOCK_HOLDER_MISMATCH", "lock de outro holder");
-      }
-    } catch (error) {
-      if (error instanceof ControllerError) throw error;
-    }
-    this.kv.removeItem(key);
+    releaseKvLock(this.kv, runId, holderId);
   }
 
   async forceUnlock(runId: string): Promise<void> {
-    this.kv.removeItem(this.k(`lock:${runId}`));
+    forceUnlockKv(this.kv, runId);
   }
 }
 

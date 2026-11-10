@@ -5,6 +5,7 @@ import {
   validateSpec,
   validateVerificationEvidence,
 } from "./contracts.ts";
+import { evidenceTracePayload } from "./evidence.ts";
 import { GATE_IDS } from "./gates.ts";
 import { redactRecord } from "./redact.ts";
 import { resumeInvalidMessage } from "./resume.ts";
@@ -406,12 +407,7 @@ export class WorkflowController {
       return this.failClosed(run, "EVIDENCE_INVALID", parsed.issues);
     }
     run.lastEvidence = parsed.value;
-    await this.trace(run, "verification_evidence", {
-      exitCode: evidence.exitCode,
-      passed: evidence.passed,
-      stdoutHead: evidence.stdout.slice(0, 500),
-      stderrHead: evidence.stderr.slice(0, 500),
-    });
+    await this.trace(run, "verification_evidence", evidenceTracePayload(parsed.value));
 
     if (evidence.passed) {
       run.phase = "review";

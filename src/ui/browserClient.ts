@@ -4,16 +4,10 @@ import { listScenarios } from "../core/scenarios.ts";
 import { ControllerError, STATIC_DEMO_BANNER, type ScenarioId } from "../core/types.ts";
 import type { LoopClient, LoopView } from "./loopClient.ts";
 
-function fail(error: unknown): LoopView {
+function failFields(error: unknown): Pick<LoopView, "error" | "message"> {
   const code = error instanceof ControllerError ? error.code : "ERROR";
   const message = error instanceof Error ? error.message : String(error);
-  return {
-    banner: STATIC_DEMO_BANNER,
-    run: null,
-    traces: [],
-    error: code,
-    message,
-  };
+  return { error: code, message };
 }
 
 export function createBrowserClient(): LoopClient {
@@ -56,7 +50,7 @@ export function createBrowserClient(): LoopClient {
         await controller.runUntilGate(started.runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async step() {
@@ -66,7 +60,7 @@ export function createBrowserClient(): LoopClient {
         await controller.step(runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async untilGate() {
@@ -76,7 +70,7 @@ export function createBrowserClient(): LoopClient {
         await controller.runUntilGate(runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async approve(gateId) {
@@ -87,7 +81,7 @@ export function createBrowserClient(): LoopClient {
         await controller.approve(runId, id);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async reject(gateId) {
@@ -98,7 +92,7 @@ export function createBrowserClient(): LoopClient {
         await controller.reject(runId, id);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async cancel() {
@@ -108,7 +102,7 @@ export function createBrowserClient(): LoopClient {
         await controller.cancel(runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async interrupt() {
@@ -118,7 +112,7 @@ export function createBrowserClient(): LoopClient {
         await controller.interrupt(runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async resume() {
@@ -128,7 +122,7 @@ export function createBrowserClient(): LoopClient {
         await controller.resume(runId);
         return await pack();
       } catch (error) {
-        return fail(error);
+        return { ...(await pack()), ...failFields(error) };
       }
     },
     async reset() {

@@ -19,7 +19,10 @@ describe("workflow controller", () => {
     const done = await driveUntilStatus(controller, started.runId, ["completed"]);
     expect(done.status).toBe("completed");
     expect(done.lastEvidence?.passed).toBe(true);
-    expect(done.lastEvidence?.exitCode).toBe(0);
+    expect(done.lastEvidence?.runner).toBe("node-process");
+    if (done.lastEvidence?.runner === "node-process") {
+      expect(done.lastEvidence.exitCode).toBe(0);
+    }
     expect(done.lastEvidence?.stdout).toContain('"ok": true');
     expect(done.lastEvidence?.argv[1]).toContain("verify-runner.mjs");
     const traces = await controller.traces(started.runId);

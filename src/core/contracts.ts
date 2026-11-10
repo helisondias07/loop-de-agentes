@@ -6,6 +6,7 @@ import type {
   ValidationIssue,
   VerificationEvidence,
 } from "./types.ts";
+import { IN_BROWSER_EXIT_NOTE } from "./types.ts";
 
 export type ContractResult<T> =
   | { ok: true; value: T }
@@ -205,11 +206,11 @@ export function validateVerificationEvidence(
       message: 'kind deve ser "verification"',
     });
   }
-  if (typeof obj.exitCode !== "number") {
+  if (obj.runner !== "node-process" && obj.runner !== "in-browser") {
     found.push({
-      path: "exitCode",
-      code: "EXIT_CODE",
-      message: "exitCode numérico é obrigatório",
+      path: "runner",
+      code: "RUNNER",
+      message: 'runner deve ser "node-process" ou "in-browser"',
     });
   }
   if (typeof obj.stdout !== "string" || typeof obj.stderr !== "string") {
@@ -233,17 +234,71 @@ export function validateVerificationEvidence(
       message: "passed booleano é obrigatório",
     });
   }
+  if (obj.runner === "in-browser") {
+    if ("exitCode" in obj && obj.exitCode !== undefined) {
+      found.push({
+        path: "exitCode",
+        code: "PROCESS_EXIT_FORBIDDEN",
+        message: "in-browser não pode expor exitCode de processo",
+      });
+    }
+    if (typeof obj.simulatedExitCode !== "number") {
+      found.push({
+        path: "simulatedExitCode",
+        code: "SIMULATED_EXIT",
+        message: "simulatedExitCode numérico é obrigatório no runner in-browser",
+      });
+    }
+  }
+  if (obj.runner === "node-process") {
+    if (typeof obj.exitCode !== "number") {
+      found.push({
+        path: "exitCode",
+        code: "EXIT_CODE",
+        message: "exitCode numérico de processo é obrigatório no runner node-process",
+      });
+    }
+    if ("simulatedExitCode" in obj && obj.simulatedExitCode !== undefined) {
+      found.push({
+        path: "simulatedExitCode",
+        code: "SIMULATED_EXIT_FORBIDDEN",
+        message: "node-process não usa simulatedExitCode",
+      });
+    }
+  }
   if (found.length > 0) return { ok: false, issues: found };
+  const durationMs = typeof obj.durationMs === "number" ? obj.durationMs : 0;
+  const stdout = obj.stdout as string;
+  const stderr = obj.stderr as string;
+  const argv = obj.argv as string[];
+  const passed = obj.passed as boolean;
+  if (obj.runner === "in-browser") {
+    return {
+      ok: true,
+      value: {
+        kind: "verification",
+        runner: "in-browser",
+        simulatedExitCode: obj.simulatedExitCode as number,
+        honestyNote: IN_BROWSER_EXIT_NOTE,
+        stdout,
+        stderr,
+        argv,
+        durationMs,
+        passed,
+      },
+    };
+  }
   return {
     ok: true,
     value: {
       kind: "verification",
+      runner: "node-process",
       exitCode: obj.exitCode as number,
-      stdout: obj.stdout as string,
-      stderr: obj.stderr as string,
-      argv: obj.argv as string[],
-      durationMs: typeof obj.durationMs === "number" ? obj.durationMs : 0,
-      passed: obj.passed as boolean,
+      stdout,
+      stderr,
+      argv,
+      durationMs,
+      passed,
     },
   };
 }
@@ -256,7 +311,7 @@ export const PHASE_ENTRY = {
   verification:
     "arquivo filters.mjs presente no workspace da run (não basta o modelo afirmar)",
   review:
-    "evidência de verificação com exitCode 0 e passed=true produzida pelo runner",
+    "evidência de verificação passed=true (node-process: exitCode 0; in-browser: simulatedExitCode 0)",
 } as const;
 
 export const PHASE_EXIT = {
@@ -264,6 +319,6 @@ export const PHASE_EXIT = {
   plan: "PlanArtifact válido (3+ steps, verificationStrategy, rollbackNote)",
   implementation: "ImplementationArtifact + filters.mjs gravado no workspace",
   verification:
-    "VerificationEvidence com stdout/stderr/exitCode reais do verify-runner",
+    "VerificationEvidence com runner discriminado: node-process (exitCode real) ou in-browser (simulatedExitCode)",
   review: "ReviewArtifact válido; conclusão exige gate humano complete-approval",
 } as const;

@@ -37,7 +37,7 @@ describe("round 4 — evidência discriminada", () => {
     expect(JSON.stringify(ev)).not.toContain("simulatedExitCode");
     const text = formatEvidence(ev!);
     expect(text).toContain("runner=node-process");
-    expect(text).toContain("exitCode=0 (processo real, spawnSync)");
+    expect(text).toContain("exitCode=0 (processo Node, spawnSync)");
     expect(text).not.toContain(IN_BROWSER_EXIT_NOTE);
     const traces = (await controller.traces(started.runId)) as {
       event?: string;

@@ -505,7 +505,7 @@ export class WorkflowController {
     if (this.inProcessLocks.has(runId)) {
       throw new ControllerError(
         "CONCURRENT_EXECUTION",
-        "execução concorrente no mesmo processo",
+        "execução concorrente no mesmo controlador",
       );
     }
     this.inProcessLocks.add(runId);

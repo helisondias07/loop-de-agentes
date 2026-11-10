@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatEvidence } from "../core/evidence.ts";
-import { STATIC_DEMO_BANNER } from "../core/types.ts";
+import { COPY } from "@app-copy";
+import { formatEvidence, formatInBrowserEvidence } from "../core/evidence.ts";
+import { IN_BROWSER_RUNNER, STATIC_DEMO_BANNER } from "../core/types.ts";
 import { createBrowserClient } from "./browserClient.ts";
 import { createHttpClient } from "./httpClient.ts";
 import type { LoopClient, LoopView } from "./loopClient.ts";
@@ -11,11 +12,11 @@ const STATIC = import.meta.env.VITE_STATIC_DEMO === "true";
 const client: LoopClient = STATIC ? createBrowserClient() : createHttpClient();
 
 const PHASES: { id: PhaseId; label: string; entry: string }[] = [
-  { id: "spec", label: "Spec", entry: "fixtures locais; workspace da run" },
-  { id: "plan", label: "Plan", entry: "spec + gate spec-approval" },
-  { id: "implementation", label: "Implementação", entry: "plan + gate plan-approval" },
-  { id: "verification", label: "Verificação", entry: "filters.mjs real no workspace" },
-  { id: "review", label: "Review", entry: "evidência passed=true (node-process ou in-browser)" },
+  { id: "spec", label: "Spec", entry: COPY.phases.spec },
+  { id: "plan", label: "Plan", entry: COPY.phases.plan },
+  { id: "implementation", label: "Implementação", entry: COPY.phases.implementation },
+  { id: "verification", label: "Verificação", entry: COPY.phases.verification },
+  { id: "review", label: "Review", entry: COPY.phases.review },
 ];
 
 const DEFAULT_BANNER = STATIC
@@ -80,6 +81,12 @@ export default function App() {
 
   const evidence = useMemo(() => {
     if (!run?.lastEvidence) return "Nenhuma evidência de verificação ainda.";
+    if (STATIC) {
+      if (run.lastEvidence.runner !== IN_BROWSER_RUNNER) {
+        return "Evidência inesperada neste demo estático (runner não é in-browser).";
+      }
+      return formatInBrowserEvidence(run.lastEvidence);
+    }
     return formatEvidence(run.lastEvidence);
   }, [run]);
 
@@ -93,11 +100,7 @@ export default function App() {
       </div>
       <header className="header">
         <h1>Loop de agentes</h1>
-        <p className="lede">
-          Controlador com contratos tipados, gates humanos no controlador (texto de
-          modelo nunca aprova), evidência real de testes e harness determinístico
-          de filtros de e-commerce sintético.
-        </p>
+        <p className="lede">{COPY.lede}</p>
       </header>
       <div className="tabs" role="tablist" aria-label="Seções">
         {(
@@ -239,16 +242,7 @@ export default function App() {
         {tab === "arquitetura" ? (
           <article className="docs">
             <h2>Arquitetura</h2>
-            <p>
-              O painel usa o mesmo <code>WorkflowController</code> da CLI e dos
-              testes. No modo local, a UI fala via <code>/api</code>. No demo
-              estático, o controlador corre neste browser com persistência em{" "}
-              <code>localStorage</code> — sem <code>/api</code>. A verificação
-              executa <code>runCatalogChecks</code> sobre o <code>filters.mjs</code>{" "}
-              gravado; não há “passed” hardcoded. A evidência leva{" "}
-              <code>runner=in-browser</code> e <code>simulatedExitCode</code>, não
-              exitCode de processo.
-            </p>
+            <p>{COPY.architecture}</p>
           </article>
         ) : null}
         {tab === "executar" ? (
@@ -267,33 +261,9 @@ npx tsx src/cli/index.ts demo-success`}</pre>
           <article className="docs">
             <h2>Limites</h2>
             <ul>
-              <li>Zero chamadas a modelos, rede de LLM ou autenticação de vendor.</li>
-              <li>Demo estático: dados só neste navegador (localStorage); sem /api.</li>
-              <li>
-                Verificação in-browser usa <code>runner=in-browser</code> e{" "}
-                <code>simulatedExitCode</code> — não é um processo OS. Node local
-                continua com <code>runner=node-process</code> e <code>exitCode</code> real.
-              </li>
-              <li>
-                Lock estático: lease em localStorage (TTL 15s) partilhado entre tabs do
-                mesmo origin. Não é tão forte quanto <code>wx</code> em ficheiro; um
-                lease expirado pode ser roubado. Escolha: lease testável no mesmo mapa,
-                sem BroadcastChannel.
-              </li>
-              <li>
-                Cancel/interrupt <strong>não</strong> abortam uma verificação em curso
-                (Node: <code>spawnSync</code> até 8s; browser: check síncrono na página).
-              </li>
-              <li>Adapter live do Cursor CLI não é executado nem validado ponta a ponta.</li>
-              <li>Protocolo de baseline/benchmark não foi executado; sem números inventados.</li>
-              <li>Catálogo sintético local; nenhum dado de loja ou cliente real.</li>
-              <li>
-                Resume só a partir de status interrupted. Cancel/interrupt cooperativos
-                entre passos.
-              </li>
-              <li>
-                Gates com ids estáticos (sem nonce). Aprovar exige gateId explícito no clique.
-              </li>
+              {COPY.limits.map((item) => (
+                <li key={item.slice(0, 48)}>{item}</li>
+              ))}
             </ul>
           </article>
         ) : null}

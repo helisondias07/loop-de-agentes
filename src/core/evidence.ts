@@ -46,23 +46,11 @@ export function inBrowserEvidence(input: {
   };
 }
 
-export function formatEvidence(ev: VerificationEvidence): string {
-  if (ev.runner === IN_BROWSER_RUNNER) {
-    return [
-      `runner=${ev.runner}`,
-      `simulatedExitCode=${ev.simulatedExitCode}`,
-      ev.honestyNote,
-      `passed=${ev.passed}`,
-      `argv=${ev.argv.join(" ")}`,
-      "--- stdout ---",
-      ev.stdout,
-      "--- stderr ---",
-      ev.stderr,
-    ].join("\n");
-  }
+export function formatInBrowserEvidence(ev: Extract<VerificationEvidence, { runner: "in-browser" }>): string {
   return [
     `runner=${ev.runner}`,
-    `exitCode=${ev.exitCode} (processo real, spawnSync)`,
+    `simulatedExitCode=${ev.simulatedExitCode}`,
+    ev.honestyNote,
     `passed=${ev.passed}`,
     `argv=${ev.argv.join(" ")}`,
     "--- stdout ---",
@@ -70,6 +58,28 @@ export function formatEvidence(ev: VerificationEvidence): string {
     "--- stderr ---",
     ev.stderr,
   ].join("\n");
+}
+
+export function formatNodeProcessEvidence(
+  ev: Extract<VerificationEvidence, { runner: "node-process" }>,
+): string {
+  return [
+    `runner=${ev.runner}`,
+    `exitCode=${ev.exitCode} (processo Node, spawnSync)`,
+    `passed=${ev.passed}`,
+    `argv=${ev.argv.join(" ")}`,
+    "--- stdout ---",
+    ev.stdout,
+    "--- stderr ---",
+    ev.stderr,
+  ].join("\n");
+}
+
+export function formatEvidence(ev: VerificationEvidence): string {
+  if (ev.runner === IN_BROWSER_RUNNER) {
+    return formatInBrowserEvidence(ev);
+  }
+  return formatNodeProcessEvidence(ev);
 }
 
 export function evidenceTracePayload(ev: VerificationEvidence): Record<string, unknown> {

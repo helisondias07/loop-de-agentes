@@ -319,6 +319,6 @@ export const PHASE_EXIT = {
   plan: "PlanArtifact válido (3+ steps, verificationStrategy, rollbackNote)",
   implementation: "ImplementationArtifact + filters.mjs gravado no workspace",
   verification:
-    "VerificationEvidence com runner discriminado: node-process (exitCode real) ou in-browser (simulatedExitCode)",
+    "VerificationEvidence com runner discriminado: node-process (exitCode de spawnSync) ou in-browser (simulatedExitCode)",
   review: "ReviewArtifact válido; conclusão exige gate humano complete-approval",
 } as const;

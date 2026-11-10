@@ -1,0 +1,265 @@
+:root {
+  color-scheme: dark;
+  --bg: #0c100d;
+  --bg-elev: #161d18;
+  --bg-panel: #121914;
+  --line: #2a3a30;
+  --text: #f3f7f1;
+  --muted: #c2cfc4;
+  --accent: #f0b429;
+  --accent-2: #5ee0c7;
+  --danger: #ff8a7a;
+  --ok: #9be08a;
+  --focus: #7ee0d0;
+  --banner: #231a08;
+  font-family: "Segoe UI", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 500px at 10% -10%, #1c2a22 0%, transparent 55%),
+    var(--bg);
+}
+
+a {
+  color: var(--accent-2);
+}
+
+.skip {
+  position: absolute;
+  left: -999px;
+  top: 8px;
+}
+.skip:focus {
+  left: 8px;
+  background: var(--accent);
+  color: #111;
+  padding: 8px 12px;
+  z-index: 10;
+}
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.banner {
+  background: var(--banner);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0 0 6px;
+  letter-spacing: -0.03em;
+}
+
+.lede {
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0 0 18px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tabs button,
+.controls button,
+select,
+.ghost {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  background: var(--accent);
+  color: #16120a;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.controls label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+select {
+  min-width: 220px;
+}
+
+.controls button.primary {
+  background: var(--accent-2);
+  color: #06241e;
+  border-color: var(--accent-2);
+  font-weight: 700;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+}
+
+.phases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.phases li {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.phases li:last-child {
+  border-bottom: 0;
+}
+
+.phases li[aria-current="step"] {
+  background: #1d2a22;
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.phase-name {
+  font-weight: 700;
+}
+
+.kicker {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  padding: 16px;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat {
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: var(--bg-elev);
+}
+
+.stat b {
+  display: block;
+  font-size: 1.2rem;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.status-pill.awaiting_human {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.status-pill.completed {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.status-pill.cancelled,
+.status-pill.exhausted,
+.status-pill.failed_closed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+pre,
+.code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  overflow: auto;
+  background: #090c0a;
+  border: 1px solid var(--line);
+  padding: 12px;
+  color: #dce8de;
+  max-height: 280px;
+}
+
+.docs p,
+.docs li {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.error {
+  color: var(--danger);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  select,
+  .controls button {
+    width: 100%;
+  }
+}

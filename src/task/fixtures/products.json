@@ -1,0 +1,50 @@
+[
+  {
+    "id": "sku-101",
+    "name": "Camiseta algodão",
+    "category": "roupa",
+    "price": 49.9,
+    "inStock": true,
+    "tags": ["algodao", "basico"]
+  },
+  {
+    "id": "sku-102",
+    "name": "Camiseta dry-fit",
+    "category": "roupa",
+    "price": 89.0,
+    "inStock": false,
+    "tags": ["esporte"]
+  },
+  {
+    "id": "sku-201",
+    "name": "Caneca cerâmica",
+    "category": "casa",
+    "price": 32.5,
+    "inStock": true,
+    "tags": ["cozinha"]
+  },
+  {
+    "id": "sku-202",
+    "name": "Jarra vidro",
+    "category": "casa",
+    "price": 120.0,
+    "inStock": true,
+    "tags": ["cozinha", "vidro"]
+  },
+  {
+    "id": "sku-301",
+    "name": "Fone bluetooth",
+    "category": "eletronicos",
+    "price": 199.9,
+    "inStock": false,
+    "tags": ["audio"]
+  },
+  {
+    "id": "sku-302",
+    "name": "Mouse óptico",
+    "category": "eletronicos",
+    "price": 45.0,
+    "inStock": true,
+    "tags": ["periferico"]
+  }
+]
